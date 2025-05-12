@@ -40,7 +40,7 @@ class TrainingVisualizer:
         plt.draw()
         plt.pause(0.01)  # 短暂暂停更新图像
         
-    def save_plots(self, save_dir="./plots"):
+    def save_plots(self, tag = '', save_dir="./plots"):
         """ 保存最终图表 """
         os.makedirs(save_dir, exist_ok=True)
         
@@ -51,7 +51,7 @@ class TrainingVisualizer:
         plt.xlabel('Steps')
         plt.ylabel('Loss')
         plt.grid(True)
-        plt.savefig(f"{save_dir}/loss_curve.png")
+        plt.savefig(f"{save_dir}/loss_curve-{tag}.png")
         plt.close()
         
         # 保存Learning Rate曲线
@@ -61,5 +61,5 @@ class TrainingVisualizer:
         plt.xlabel('Steps')
         plt.ylabel('Learning Rate')
         plt.grid(True)
-        plt.savefig(f"{save_dir}/lr_curve.png")
+        plt.savefig(f"{save_dir}/lr_curve-{tag}.png")
         plt.close()

@@ -39,6 +39,7 @@ model_names = [
 LENGTH_FEATURES = 1
 TRAIN_DATA_SIZE = 10000
 TEST_DATA_SIZE = 2000
+MODEL_NUM = 15
 
 def merge_features(data_size: int, is_test_data = False) -> torch.Tensor:
     features_path = os.path.join(os.path.dirname(__file__), "./features")
@@ -70,7 +71,7 @@ def normalize_by_model(tensor: torch.Tensor) -> torch.Tensor:
         normalized_tensor[:,i,:] = torch.from_numpy(normalized_features)
     return normalized_tensor
 
-def train(model: ClassifierModel, train_data: DataLoader, device: str, epochs = 20):
+def train(model: ClassifierModel, train_data: DataLoader, device: str, epochs = 30, test_data: DataLoader = None):
     model = model.to(device)
     criterion = FocalLoss()
     optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -85,7 +86,7 @@ def train(model: ClassifierModel, train_data: DataLoader, device: str, epochs = 
         epoch_step = 0
         epoch_loss = 0
         predicts, truths = [], []
-
+        model.train()
         for inputs, labels in train_data:
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -114,11 +115,14 @@ def train(model: ClassifierModel, train_data: DataLoader, device: str, epochs = 
             acc = accuracy_score(truths, predicts)
             f1 = f1_score(truths, predicts, average="macro")
 
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Epoch {epoch + 1} | "
-                  f"Progress: {global_step} / {total_steps} | Grad: {total_norm:.4f} | "
-                  f"Avg Loss: {avg_loss:.4f} | accuracy score: {acc * 100:.2f}% | f1 score: {f1 * 100:.2f}%")
+            # print(f"[{datetime.now().strftime('%H:%M:%S')}] Epoch {epoch + 1} | "
+            #       f"Progress: {global_step} / {total_steps} | Grad: {total_norm:.4f} | "
+            #       f"Avg Loss: {avg_loss:.4f} | accuracy score: {acc * 100:.2f}% | f1 score: {f1 * 100:.2f}%")
         
-    visualizer.save_plots()
+        if (test_data is not None):
+            print(f"Epoch {epoch} ")
+            validate(model, test_data, device)
+    visualizer.save_plots(epochs)
 
 @torch.no_grad()
 def validate(model: ClassifierModel, validate_data: DataLoader, device: str):
@@ -137,9 +141,9 @@ def validate(model: ClassifierModel, validate_data: DataLoader, device: str):
         predicts.extend(torch.argmax(outputs, 1).cpu().numpy())
         truths.extend(labels.cpu().numpy())
 
-        acc = accuracy_score(truths, predicts)
-        f1 = f1_score(truths, predicts, average="macro")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] accuracy score: {acc * 100:.2f}% | f1 score: {f1 * 100:.2f}%")
+    acc = accuracy_score(truths, predicts)
+    f1 = f1_score(truths, predicts, average="macro")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] validation ｜ accuracy score: {acc * 100:.2f}% | f1 score: {f1 * 100:.2f}%")
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -162,20 +166,20 @@ def main():
 
     normalized_train_tensor = normalize_by_model(train_tensor)
     normalized_test_tensor = normalize_by_model(test_tensor)
-    for i in range(20):
+    for i in range(MODEL_NUM):
         col = normalized_train_tensor[:,0,i]
         col2 = normalized_test_tensor[:,0,i]
         print(f"train model: {i}, the mean of col: {col.mean():.2f}, the std of col is {col.std():.2f}")
         print(f"test model: {i}, the mean of col2: {col2.mean():.2f}, the std of col2 is {col2.std():.2f}")
     
-    model = ClassifierModel(1, 20)
+    model = ClassifierModel(1, MODEL_NUM)
     train_data_loader = DataLoader(TensorDataset(normalized_train_tensor, train_labels), batch_size=128, shuffle=True)
     validate_data_loader = DataLoader(TensorDataset(normalized_test_tensor, test_labels), batch_size=64, shuffle=False)
 
 
-    train(model, train_data_loader, device, 50)
+    train(model, train_data_loader, device, 50, validate_data_loader)
     torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), "models/trained_model.pth"))
-    validate(model, validate_data_loader, device)
+    # validate(model, validate_data_loader, device)
 
     # X_train_np = normalized_train_tensor.numpy().squeeze(1)
     # y_train_np = train_labels.numpy()
